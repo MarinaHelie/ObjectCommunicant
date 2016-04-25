@@ -7,7 +7,7 @@ var app = express();
 
 var token="iPt5AYfkmCNrvIN1wXzU0Bpw3uXrcfWttfQvALUwqSuser5NDnsPMdzaJr58Wrgn";
 var idDevice;
-var idSensorTemp;
+var idSensorTemp= {};
 var temps = {};
 
 // config
@@ -22,7 +22,7 @@ app.use(express.static(__dirname + '/public')); // Indique que le dossier /publi
 logger.info('server start');
 
 //Function
-function getDevice()
+function getDevice(res)
 {
 	var adr = "https://api.sensit.io/v1/devices";
 	var http = new XMLHttpRequest();
@@ -34,14 +34,14 @@ function getDevice()
 		{
 			var t=JSON.parse(http.responseText);
 			idDevice = t.data[0].id;
-			logger.info('Recuperation de id device : ' + idDevice);
+			
+			getSensors(idDevice, res);
 		}
 	}
 	http.send(null);
-	return idDevice;
 };
 
-function getTemperature(idDev, idSen)
+function getTemperature(idDev, idSen, i, res)
 {
 	var adr = "https://api.sensit.io/v1/devices/" + idDev + "/sensors/" + idSen;
 	var http = new XMLHttpRequest();
@@ -52,20 +52,19 @@ function getTemperature(idDev, idSen)
 		if(http.readyState == 4)
 		{
 			var t = JSON.parse(http.responseText);
-			for(var i = 0; i < t.data.history.length; i++)
+			for(var j = 0; j < t.data.history.length; j++)
 			{
 				var temp = t.data.history[i].data;
 				var date = t.data.history[i].date;
-				temps[i] = {temp, date};
-				logger.info('Recuperation de temp : ' + temps[i].temp);
+				temps[i][j] = {temperature : temp, datetime : date};
+				logger.info('Recuperation de temp : ' + temps[i][j].temperature);
 			}
 		}
 	}
 	http.send(null);
-	return temps;
 };
 		
-function getSensors(id)
+function getSensors(id, res)
 {
 	var adr = "https://api.sensit.io/v1/devices/" + id;
 	var http = new XMLHttpRequest();
@@ -79,20 +78,23 @@ function getSensors(id)
 				for(var i = 0; i < t.data.sensors.length; i++)
 				{
 					idSensorTemp[i] = t.data.sensors[i].id;
-					logger.info('Recuperation de id sensor : ' + idSensorTemp[i]);
+					logger.info('Recuperation de id sensor : ' + idSensorTemp);
+					temps[i] = {};
+					getTemperature(id, idSensorTemp[i], i, res);
 				}
+				res.render('affichage', { device : idDevice, sensors : idSensorTemp, temperature : temps});
 		}
 	}
 	http.send(null);
-	return idSensorTemp;
+	
 };
 
 // route
 app.get('/', function(req, res)
 {
-	if (idDevice != null) 
+	if (idDevice != null && idSensorTemp != null && temps != null) 
 	{
-		if (idSensorTemp != null) 
+		/*if (idSensorTemp != null) 
 		{
 			if (temps != null) 
 			{
@@ -110,13 +112,14 @@ app.get('/', function(req, res)
 		else
 		{
 			idSensorTemp = getSensors(idDevice);
-			res.redirect('/');
-		}
+			
+		}*/
+		res.render('affichage', { device : idDevice, sensors : idSensorTemp, temperature : temps});
 	}
 	else
 	{
-		idDevice = getDevice();
-		res.redirect('/');
+		idDevice = getDevice(res);
+		//res.redirect('/');
 	}   
 });
 
